@@ -1,73 +1,51 @@
-version: "3"
-
-#NETWORK
-networks:
-  my-network:
-    driver: bridge
-
-#VOLUMES
-volumes:
-  dir-site:
-    driver_opts:
-      device: /d/Webserver
-      o: bind
-
+version: '3.3'
 services:
-  # CONTAINER PHP
-  my-php:
-    container_name: php-product
-    build:
-      dockerfile: Dockerfile
-      context: ./php/
-    hostname: php
-    restart: always
-    networks:
-      - my-network
+  nginx:
+    image: nginx:1.17.4-alpine
+    ports:
+      - 8989:80
+    depends_on:
+      - php
     volumes:
-      - dir-site:/home/sites/
+      - .:/application
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+
+  php:
+    build: ./docker/php/
+    volumes:
+      - .:/application
+      - ./docker/php/custom.ini:/usr/local/etc/php/conf.d/custom.ini
+    depends_on:
+      - db
+      - redis
+    environment:
+      - DB_PORT=3306
+      - DB_HOST=db
+      - DB_USERNAME=root
+      - DB_PASS=secret
+      - DB_NAME=laravel
+
+  db:
+    image: mysql:5.7
+    volumes:
+      - db_data:/var/lib/mysql
+    environment:
+      - MYSQL_DATABASE=laravel
+      - MYSQL_ROOT_PASSWORD=secret
+      - MYSQL_USER=root
+      - MYSQL_PASSWORD=secret
+
+  redis:
+    image: redis:5.0.6-alpine
+    ports:
+      - "6382:6379"
+
+  myadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    environment:
+      PMA_HOST: db
     ports:
       - "8080:80"
-  # CONTAINER HTTPD
-  my-httpd:
-    container_name: c-httpd01
-    image: "httpd:latest"
-    hostname: httpd
-    restart: always
-    networks:
-      - my-network
-    volumes:
-      - dir-site:/home/sites/
-      - ./httpd.conf:/usr/local/apache2/conf/httpd.conf
-    ports:
-      - "9999:80"
-      - "443:443"
-  # container MYSQL
-  my-mysql:
-    container_name: mysql-product
-    image: "mysql:latest"
-    hostname: mysql
-    restart: always
-    networks:
-      - my-network
-    volumes:
-      - ./db:/var/lib/mysql
-      - ./my.cnf:/etc/mysql/my.cnf
-    environment:
-      - MYSQL_ROOT_PASSWORD=123abc
-      - MYSQL_DATABASE=db_site
-      - MYSQL_USER=siteuser
-      - MYSQL_PASSWORD=sitepass
-  #phpmyadmin
-  my-phpmyadmin:
-    container_name: myadmin-product
-    image: "phpmyadmin/phpmyadmin:latest"
-    networks: 
-      - my-network
-    restart: always
-    environment: 
-      PMA_HOST: my-mysql
-    ports: 
-      - "8000:80"
 
-    
-  
+volumes:
+  db_data:
